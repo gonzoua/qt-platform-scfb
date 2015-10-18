@@ -109,13 +109,12 @@ QScFbScreen::~QScFbScreen()
 
 bool QScFbScreen::initialize()
 {
-    QRegularExpression ttyRx(QLatin1String("tty=(.*)"));
     QRegularExpression fbRx(QLatin1String("fb=(.*)"));
     QRegularExpression mmSizeRx(QLatin1String("mmsize=(\\d+)x(\\d+)"));
     QRegularExpression sizeRx(QLatin1String("size=(\\d+)x(\\d+)"));
     QRegularExpression offsetRx(QLatin1String("offset=(\\d+)x(\\d+)"));
 
-    QString fbDevice, ttyDevice;
+    QString fbDevice;
     QSize userMmSize;
     QRect userGeometry;
     bool doSwitchToGraphicsMode = true;
@@ -131,24 +130,22 @@ bool QScFbScreen::initialize()
             userGeometry.setSize(QSize(match.captured(1).toInt(), match.captured(2).toInt()));
         else if (arg.contains(offsetRx, &match))
             userGeometry.setTopLeft(QPoint(match.captured(1).toInt(), match.captured(2).toInt()));
-        else if (arg.contains(ttyRx, &match))
-            ttyDevice = match.captured(1);
         else if (arg.contains(fbRx, &match))
             fbDevice = match.captured(1);
     }
 
-    if (fbDevice.isEmpty()) {
-        fbDevice = QLatin1String("/dev/fb0");
-        if (!QFile::exists(fbDevice))
-            fbDevice = QLatin1String("/dev/graphics/fb0");
+    if (!fbDevice.isEmpty()) {
         if (!QFile::exists(fbDevice)) {
             qWarning("Unable to figure out framebuffer device. Specify it manually.");
             return false;
         }
-    }
 
-    // Open the device
-    mFbFd = openFramebufferDevice(fbDevice);
+        // Open the device
+        mFbFd = openFramebufferDevice(fbDevice);
+    }
+    else
+        mFbFd = STDIN_FILENO;
+
     if (mFbFd == -1) {
         qErrnoWarning(errno, "Failed to open framebuffer %s", qPrintable(fbDevice));
         return false;
@@ -175,15 +172,15 @@ bool QScFbScreen::initialize()
     mGeometry = QRect(QPoint(0, 0), geometry.size());
     switch (mDepth) {
         case 32:
-    	    mFormat = QImage::Format_RGB32;
-    	    break;
+            mFormat = QImage::Format_RGB32;
+            break;
         case 24:
-    	    mFormat = QImage::Format_RGB888;
-    	    break;
+            mFormat = QImage::Format_RGB888;
+            break;
         case 16:
         default:
-    	    mFormat = QImage::Format_RGB16;
-    	    break;
+            mFormat = QImage::Format_RGB16;
+            break;
     }
     mPhysicalSize = determinePhysicalSize(userMmSize, geometry.size());
 

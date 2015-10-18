@@ -46,13 +46,7 @@
 #include <QtGui/private/qguiapplication_p.h>
 #include <qpa/qplatforminputcontextfactory_p.h>
 
-#if !defined(QT_NO_EVDEV) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK))
-#include <QtPlatformSupport/private/qevdevmousemanager_p.h>
-#include <QtPlatformSupport/private/qevdevkeyboardmanager_p.h>
-#include <QtPlatformSupport/private/qevdevtouchmanager_p.h>
-#endif
-
-#if !defined(QT_NO_TSLIB) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK))
+#if !defined(QT_NO_TSLIB)
 #include <QtPlatformSupport/private/qtslib_p.h>
 #endif
 
@@ -130,16 +124,10 @@ QPlatformServices *QScFbIntegration::services() const
 
 void QScFbIntegration::createInputHandlers()
 {
-#if !defined(QT_NO_EVDEV) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK))
-    new QEvdevKeyboardManager(QLatin1String("EvdevKeyboard"), QString(), this);
-    new QEvdevMouseManager(QLatin1String("EvdevMouse"), QString(), this);
 #ifndef QT_NO_TSLIB
     const bool useTslib = qEnvironmentVariableIntValue("QT_QPA_FB_TSLIB");
     if (useTslib)
         new QTsLibMouseHandler(QLatin1String("TsLib"), QString());
-    else
-#endif // QT_NO_TSLIB
-        new QEvdevTouchManager(QLatin1String("EvdevTouch"), QString() /* spec */, this);
 #endif
 }
 
