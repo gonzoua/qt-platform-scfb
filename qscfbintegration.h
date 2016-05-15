@@ -31,8 +31,8 @@
 **
 ****************************************************************************/
 
-#ifndef QLINUXFBINTEGRATION_H
-#define QLINUXFBINTEGRATION_H
+#ifndef QSCFBINTEGRATION_H
+#define QSCFBINTEGRATION_H
 
 #include <qpa/qplatformintegration.h>
 #include <qpa/qplatformnativeinterface.h>
@@ -78,4 +78,4 @@ private:
 
 QT_END_NAMESPACE
 
-#endif // QLINUXFBINTEGRATION_H
+#endif // QSCFBINTEGRATION_H
