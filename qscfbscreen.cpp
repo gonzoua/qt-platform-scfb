@@ -90,8 +90,6 @@ static QSizeF determinePhysicalSize(const QSize &mmSize, const QSize &res)
     return QSize(mmWidth, mmHeight);
 }
 
-
-
 QScFbScreen::QScFbScreen(const QStringList &args)
     : mArgs(args), mFbFd(-1), mBlitter(0)
 {
@@ -122,9 +120,7 @@ bool QScFbScreen::initialize()
     // Parse arguments
     foreach (const QString &arg, mArgs) {
         QRegularExpressionMatch match;
-        if (arg == QLatin1String("nographicsmodeswitch"))
-            doSwitchToGraphicsMode = false;
-        else if (arg.contains(mmSizeRx, &match))
+        if (arg.contains(mmSizeRx, &match))
             userMmSize = QSize(match.captured(1).toInt(), match.captured(2).toInt());
         else if (arg.contains(sizeRx, &match))
             userGeometry.setSize(QSize(match.captured(1).toInt(), match.captured(2).toInt()));
@@ -221,7 +217,6 @@ QRegion QScFbScreen::doRedraw()
 }
 
 // grabWindow() grabs "from the screen" not from the backingstores.
-// In scfb's case it will also include the mouse cursor.
 QPixmap QScFbScreen::grabWindow(WId wid, int x, int y, int width, int height) const
 {
     if (!wid) {

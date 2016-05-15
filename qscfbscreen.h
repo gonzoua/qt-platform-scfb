@@ -31,15 +31,14 @@
 **
 ****************************************************************************/
 
-#ifndef QLINUXFBSCREEN_H
-#define QLINUXFBSCREEN_H
+#ifndef QSCFBSCREEN_H
+#define QSCFBSCREEN_H
 
 #include <QtPlatformSupport/private/qfbscreen_p.h>
 
 QT_BEGIN_NAMESPACE
 
 class QPainter;
-class QFbCursor;
 
 class QScFbScreen : public QFbScreen
 {
@@ -57,11 +56,9 @@ public:
 private:
     QStringList mArgs;
     int mFbFd;
-    int mTtyFd;
 
     QImage mFbScreenImage;
     int mBytesPerLine;
-    int mOldTtyMode;
 
     struct {
         uchar *data;
@@ -73,5 +70,4 @@ private:
 
 QT_END_NAMESPACE
 
-#endif // QLINUXFBSCREEN_H
-
+#endif // QSCFBSCREEN_H
