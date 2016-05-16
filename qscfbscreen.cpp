@@ -74,6 +74,45 @@ static int openFramebufferDevice(const QString &dev)
     return fd;
 }
 
+static QRect determineGeometry(const struct fbtype &fb, const QRect &userGeometry)
+{
+    int xoff = 0;
+    int yoff = 0;
+    int w, h;
+    if (userGeometry.isValid()) {
+        w = userGeometry.width();
+        h = userGeometry.height();
+        if (w > fb.fb_width)
+            w = fb.fb_width;
+        if (h > fb.fb_height)
+            h = fb.fb_height;
+
+        int xxoff = userGeometry.x(), yyoff = userGeometry.y();
+        if (xxoff != 0 || yyoff != 0) {
+            if (xxoff < 0 || xxoff + w > fb.fb_width)
+                xxoff = fb.fb_width - w;
+            if (yyoff < 0 || yyoff + h > fb.fb_height)
+                yyoff = fb.fb_height - h;
+            xoff += xxoff;
+            yoff += yyoff;
+        } else {
+            xoff += (fb.fb_width - w)/2;
+            yoff += (fb.fb_height - h)/2;
+        }
+    } else {
+        w = fb.fb_width;
+        h = fb.fb_height;
+    }
+
+    if (w == 0 || h == 0) {
+        qWarning("Unable to find screen geometry, using 320x240");
+        w = 320;
+        h = 240;
+    }
+
+    return QRect(xoff, yoff, w, h);
+}
+
 static QSizeF determinePhysicalSize(const QSize &mmSize, const QSize &res)
 {
     int mmWidth = mmSize.width(), mmHeight = mmSize.height();
@@ -116,7 +155,6 @@ bool QScFbScreen::initialize()
     QString fbDevice;
     QSize userMmSize;
     QRect userGeometry;
-    bool doSwitchToGraphicsMode = true;
 
     // Parse arguments
     foreach (const QString &arg, mArgs) {
@@ -165,7 +203,7 @@ bool QScFbScreen::initialize()
 
     mBytesPerLine = line_length;
     // TODO: userGeometry here?
-    QRect geometry = QRect(0, 0, fb.fb_width, fb.fb_height);
+    QRect geometry = determineGeometry(fb, userGeometry);
     mGeometry = QRect(QPoint(0, 0), geometry.size());
     switch (mDepth) {
         case 32:
@@ -183,7 +221,7 @@ bool QScFbScreen::initialize()
 
     // mmap the framebuffer
     int pagemask = getpagesize() - 1;
-    mMmap.size = ((int) mBytesPerLine*geometry.height() + pagemask) & ~pagemask;
+    mMmap.size = ((int) mBytesPerLine*fb.fb_height + pagemask) & ~pagemask;
     uchar *data = (unsigned char *)mmap(0, mMmap.size, PROT_READ | PROT_WRITE, MAP_SHARED, mFbFd, 0);
     if ((long)data == -1) {
         qErrnoWarning(errno, "Failed to mmap framebuffer");
