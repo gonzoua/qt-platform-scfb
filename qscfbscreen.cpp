@@ -202,7 +202,6 @@ bool QScFbScreen::initialize()
     mDepth = fb.fb_depth;
 
     mBytesPerLine = line_length;
-    // TODO: userGeometry here?
     QRect geometry = determineGeometry(fb, userGeometry);
     mGeometry = QRect(QPoint(0, 0), geometry.size());
     switch (mDepth) {
@@ -282,4 +281,3 @@ QPixmap QScFbScreen::grabWindow(WId wid, int x, int y, int width, int height) co
 }
 
 QT_END_NAMESPACE
-
