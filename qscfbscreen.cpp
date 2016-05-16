@@ -169,15 +169,9 @@ bool QScFbScreen::initialize()
             fbDevice = match.captured(1);
     }
 
-    if (!fbDevice.isEmpty()) {
-        if (!QFile::exists(fbDevice)) {
-            qWarning("Unable to figure out framebuffer device. Specify it manually.");
-            return false;
-        }
-
+    if (!fbDevice.isEmpty())
         // Open the device
         mFbFd = openFramebufferDevice(fbDevice);
-    }
     else
         mFbFd = STDIN_FILENO;
 
