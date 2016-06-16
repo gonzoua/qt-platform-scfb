@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2016 The Qt Company Ltd.
 ** Copyright (C) 2015-2016 Oleksandr Tymoshenko <gonzo@bluezbox.com>
 ** Contact: http://www.qt.io/licensing/
 **
@@ -33,25 +33,25 @@
 ****************************************************************************/
 
 #include <qpa/qplatformintegrationplugin.h>
-#include "qscfbintegration.h"
+#include "qbsdfbintegration.h"
 
 QT_BEGIN_NAMESPACE
 
-class QScFbIntegrationPlugin : public QPlatformIntegrationPlugin
+class QBsdFbIntegrationPlugin : public QPlatformIntegrationPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "scfb.json")
+    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "bsdfb.json")
 public:
-    QPlatformIntegration *create(const QString&, const QStringList&) Q_DECL_OVERRIDE;
+    QPlatformIntegration *create(const QString&, const QStringList&) override;
 };
 
-QPlatformIntegration* QScFbIntegrationPlugin::create(const QString& system, const QStringList& paramList)
+QPlatformIntegration* QBsdFbIntegrationPlugin::create(const QString& system, const QStringList& paramList)
 {
     Q_UNUSED(paramList);
-    if (!system.compare(QLatin1String("scfb"), Qt::CaseInsensitive))
-        return new QScFbIntegration(paramList);
+    if (!system.compare(QLatin1String("bsdfb"), Qt::CaseInsensitive))
+        return new QBsdFbIntegration(paramList);
 
-    return 0;
+    return nullptr;
 }
 
 QT_END_NAMESPACE

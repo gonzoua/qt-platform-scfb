@@ -1,6 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2015-2016 Oleksandr Tymoshenko <gonzo@bluezbox.com>
 ** Contact: http://www.qt.io/licensing/
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -31,51 +32,43 @@
 **
 ****************************************************************************/
 
-#ifndef QSCFBINTEGRATION_H
-#define QSCFBINTEGRATION_H
+#ifndef QBSDFBSCREEN_H
+#define QBSDFBSCREEN_H
 
-#include <qpa/qplatformintegration.h>
-#include <qpa/qplatformnativeinterface.h>
+#include <QtPlatformSupport/private/qfbscreen_p.h>
 
 QT_BEGIN_NAMESPACE
 
-class QAbstractEventDispatcher;
-class QScFbScreen;
-class QFbVtHandler;
+class QPainter;
 
-class QScFbIntegration : public QPlatformIntegration, public QPlatformNativeInterface
+class QBsdFbScreen : public QFbScreen
 {
+    Q_OBJECT
 public:
-    QScFbIntegration(const QStringList &paramList);
-    ~QScFbIntegration();
+    explicit QBsdFbScreen(const QStringList &args);
+    ~QBsdFbScreen() override;
 
-    void initialize() Q_DECL_OVERRIDE;
-    bool hasCapability(QPlatformIntegration::Capability cap) const Q_DECL_OVERRIDE;
+    bool initialize();
 
-    QPlatformWindow *createPlatformWindow(QWindow *window) const Q_DECL_OVERRIDE;
-    QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const Q_DECL_OVERRIDE;
+    QPixmap grabWindow(WId wid, int x, int y, int width, int height) const override;
 
-    QAbstractEventDispatcher *createEventDispatcher() const Q_DECL_OVERRIDE;
-
-    QPlatformFontDatabase *fontDatabase() const Q_DECL_OVERRIDE;
-    QPlatformServices *services() const Q_DECL_OVERRIDE;
-    QPlatformInputContext *inputContext() const Q_DECL_OVERRIDE { return m_inputContext; }
-
-    QPlatformNativeInterface *nativeInterface() const Q_DECL_OVERRIDE;
-
-    QList<QPlatformScreen *> screens() const;
+    QRegion doRedraw() override;
 
 private:
-    void createInputHandlers();
+    QStringList m_arguments;
+    int m_framebufferFd = -1;
+    QImage m_onscreenImage;
 
-    QScFbScreen *m_primaryScreen;
-    QPlatformInputContext *m_inputContext;
-    QScopedPointer<QPlatformFontDatabase> m_fontDb;
-    QScopedPointer<QPlatformServices> m_services;
-    QScopedPointer<QFbVtHandler> m_vtHandler;
-    QScopedPointer<QPlatformNativeInterface> m_nativeInterface;
+    int m_bytesPerLine = -1;
+
+    struct {
+        uchar *data;
+        int offset, size;
+    } m_mmap;
+
+    QScopedPointer<QPainter> m_blitter;
 };
 
 QT_END_NAMESPACE
 
-#endif // QSCFBINTEGRATION_H
+#endif // QBSDFBSCREEN_H

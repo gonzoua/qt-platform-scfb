@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2016 The Qt Company Ltd.
 ** Copyright (C) 2015-2016 Oleksandr Tymoshenko <gonzo@bluezbox.com>
 ** Contact: http://www.qt.io/licensing/
 **
@@ -32,7 +32,7 @@
 **
 ****************************************************************************/
 
-#include "qscfbscreen.h"
+#include "qbsdfbscreen.h"
 #include <QtPlatformSupport/private/qfbcursor_p.h>
 #include <QtPlatformSupport/private/qfbwindow_p.h>
 #include <QtCore/QRegularExpression>
@@ -59,17 +59,18 @@
 
 QT_BEGIN_NAMESPACE
 
+enum {
+    DefaultDPI = 100
+};
+
 static int openFramebufferDevice(const QString &dev)
 {
-    int fd = -1;
+    const QByteArray devPath = QFile::encodeName(dev);
 
-    if (access(dev.toLatin1().constData(), R_OK|W_OK) == 0)
-        fd = QT_OPEN(dev.toLatin1().constData(), O_RDWR);
+    int fd = QT_OPEN(devPath.constData(), O_RDWR);
 
-    if (fd == -1) {
-        if (access(dev.toLatin1().constData(), R_OK) == 0)
-            fd = QT_OPEN(dev.toLatin1().constData(), O_RDONLY);
-    }
+    if (fd == -1)
+        fd = QT_OPEN(devPath.constData(), O_RDONLY);
 
     return fd;
 }
@@ -78,14 +79,12 @@ static QRect determineGeometry(const struct fbtype &fb, const QRect &userGeometr
 {
     int xoff = 0;
     int yoff = 0;
-    int w, h;
+    int w = 0;
+    int h = 0;
+
     if (userGeometry.isValid()) {
-        w = userGeometry.width();
-        h = userGeometry.height();
-        if (w > fb.fb_width)
-            w = fb.fb_width;
-        if (h > fb.fb_height)
-            h = fb.fb_height;
+        w = qMin(userGeometry.width(), fb.fb_width);
+        h = qMin(userGeometry.height(), fb.fb_height);
 
         int xxoff = userGeometry.x(), yyoff = userGeometry.y();
         if (xxoff != 0 || yyoff != 0) {
@@ -115,10 +114,11 @@ static QRect determineGeometry(const struct fbtype &fb, const QRect &userGeometr
 
 static QSizeF determinePhysicalSize(const QSize &mmSize, const QSize &res)
 {
-    int mmWidth = mmSize.width(), mmHeight = mmSize.height();
+    int mmWidth = mmSize.width();
+    int mmHeight = mmSize.height();
 
     if (mmWidth <= 0 && mmHeight <= 0) {
-        const int dpi = 100;
+        const int dpi = DefaultDPI;
         mmWidth = qRound(res.width() * 25.4 / dpi);
         mmHeight = qRound(res.height() * 25.4 / dpi);
     } else if (mmWidth > 0 && mmHeight <= 0) {
@@ -130,22 +130,20 @@ static QSizeF determinePhysicalSize(const QSize &mmSize, const QSize &res)
     return QSize(mmWidth, mmHeight);
 }
 
-QScFbScreen::QScFbScreen(const QStringList &args)
-    : mArgs(args), mFbFd(-1), mBlitter(0)
+QBsdFbScreen::QBsdFbScreen(const QStringList &args)
+    : m_arguments(args)
 {
 }
 
-QScFbScreen::~QScFbScreen()
+QBsdFbScreen::~QBsdFbScreen()
 {
-    if (mFbFd != -1) {
-        munmap(mMmap.data - mMmap.offset, mMmap.size);
-        close(mFbFd);
+    if (m_framebufferFd != -1) {
+        munmap(m_mmap.data - m_mmap.offset, m_mmap.size);
+        qt_safe_close(m_framebufferFd);
     }
-
-    delete mBlitter;
 }
 
-bool QScFbScreen::initialize()
+bool QBsdFbScreen::initialize()
 {
     QRegularExpression fbRx(QLatin1String("fb=(.*)"));
     QRegularExpression mmSizeRx(QLatin1String("mmsize=(\\d+)x(\\d+)"));
@@ -157,7 +155,7 @@ bool QScFbScreen::initialize()
     QRect userGeometry;
 
     // Parse arguments
-    foreach (const QString &arg, mArgs) {
+    for (const QString &arg : qAsConst(m_arguments)) {
         QRegularExpressionMatch match;
         if (arg.contains(mmSizeRx, &match))
             userMmSize = QSize(match.captured(1).toInt(), match.captured(2).toInt());
@@ -169,97 +167,98 @@ bool QScFbScreen::initialize()
             fbDevice = match.captured(1);
     }
 
-    if (!fbDevice.isEmpty())
+    if (!fbDevice.isEmpty()) {
         // Open the device
-        mFbFd = openFramebufferDevice(fbDevice);
-    else
-        mFbFd = STDIN_FILENO;
+        m_framebufferFd = openFramebufferDevice(fbDevice);
+    } else {
+        m_framebufferFd = STDIN_FILENO;
+    }
 
-    if (mFbFd == -1) {
+    if (m_framebufferFd == -1) {
         qErrnoWarning(errno, "Failed to open framebuffer %s", qPrintable(fbDevice));
         return false;
     }
 
     struct fbtype fb;
-    int line_length;
-
-    if (ioctl(mFbFd, FBIOGTYPE, &fb) != 0) {
+    if (ioctl(m_framebufferFd, FBIOGTYPE, &fb) != 0) {
         qErrnoWarning(errno, "Error reading framebuffer information");
         return false;
     }
 
-    if (ioctl(mFbFd, FBIO_GETLINEWIDTH, &line_length) != 0) {
+    int line_length = 0;
+    if (ioctl(m_framebufferFd, FBIO_GETLINEWIDTH, &line_length) != 0) {
         qErrnoWarning(errno, "Error reading line length information");
         return false;
     }
 
     mDepth = fb.fb_depth;
 
-    mBytesPerLine = line_length;
-    QRect geometry = determineGeometry(fb, userGeometry);
+    m_bytesPerLine = line_length;
+    const QRect geometry = determineGeometry(fb, userGeometry);
     mGeometry = QRect(QPoint(0, 0), geometry.size());
     switch (mDepth) {
-        case 32:
-            mFormat = QImage::Format_RGB32;
-            break;
-        case 24:
-            mFormat = QImage::Format_RGB888;
-            break;
-        case 16:
-        default:
-            mFormat = QImage::Format_RGB16;
-            break;
+    case 32:
+        mFormat = QImage::Format_RGB32;
+        break;
+    case 24:
+        mFormat = QImage::Format_RGB888;
+        break;
+    case 16:
+        // falling back
+    default:
+        mFormat = QImage::Format_RGB16;
+        break;
     }
     mPhysicalSize = determinePhysicalSize(userMmSize, geometry.size());
 
     // mmap the framebuffer
-    int pagemask = getpagesize() - 1;
-    mMmap.size = ((int) mBytesPerLine*fb.fb_height + pagemask) & ~pagemask;
-    uchar *data = (unsigned char *)mmap(0, mMmap.size, PROT_READ | PROT_WRITE, MAP_SHARED, mFbFd, 0);
-    if ((long)data == -1) {
+    const size_t pagemask = getpagesize() - 1;
+    m_mmap.size = (m_bytesPerLine * fb.fb_height + pagemask) & ~pagemask;
+    uchar *data = static_cast<uchar*>(mmap(nullptr, m_mmap.size, PROT_READ | PROT_WRITE, MAP_SHARED, m_framebufferFd, 0));
+    if (data == MAP_FAILED) {
         qErrnoWarning(errno, "Failed to mmap framebuffer");
         return false;
     }
 
-    mMmap.offset = geometry.y() * mBytesPerLine + geometry.x() * mDepth / 8;
-    mMmap.data = data + mMmap.offset;
+    m_mmap.offset = geometry.y() * m_bytesPerLine + geometry.x() * mDepth / 8;
+    m_mmap.data = data + m_mmap.offset;
 
     QFbScreen::initializeCompositor();
-    mFbScreenImage = QImage(mMmap.data, geometry.width(), geometry.height(), mBytesPerLine, mFormat);
+    m_onscreenImage = QImage(m_mmap.data, geometry.width(), geometry.height(), m_bytesPerLine, mFormat);
 
     mCursor = new QFbCursor(this);
 
     return true;
 }
 
-QRegion QScFbScreen::doRedraw()
+QRegion QBsdFbScreen::doRedraw()
 {
-    QRegion touched = QFbScreen::doRedraw();
+    const QRegion touched = QFbScreen::doRedraw();
 
     if (touched.isEmpty())
         return touched;
 
-    if (!mBlitter)
-        mBlitter = new QPainter(&mFbScreenImage);
+    if (!m_blitter)
+        m_blitter.reset(new QPainter(&m_onscreenImage));
 
-    QVector<QRect> rects = touched.rects();
-    for (int i = 0; i < rects.size(); i++)
-        mBlitter->drawImage(rects[i], *mScreenImage, rects[i]);
+    const auto rects = touched.rects();
+    for (const QRect &rect : rects)
+        m_blitter->drawImage(rect, *mScreenImage, rect);
     return touched;
 }
 
 // grabWindow() grabs "from the screen" not from the backingstores.
-QPixmap QScFbScreen::grabWindow(WId wid, int x, int y, int width, int height) const
+QPixmap QBsdFbScreen::grabWindow(WId wid, int x, int y, int width, int height) const
 {
     if (!wid) {
         if (width < 0)
-            width = mFbScreenImage.width() - x;
+            width = m_onscreenImage.width() - x;
         if (height < 0)
-            height = mFbScreenImage.height() - y;
-        return QPixmap::fromImage(mFbScreenImage).copy(x, y, width, height);
+            height = m_onscreenImage.height() - y;
+        return QPixmap::fromImage(m_onscreenImage).copy(x, y, width, height);
     }
 
-    QFbWindow *window = windowForId(wid);
+    const QFbWindow *window = windowForId(wid);
     if (window) {
         const QRect geom = window->geometry();
         if (width < 0)
@@ -268,7 +267,7 @@ QPixmap QScFbScreen::grabWindow(WId wid, int x, int y, int width, int height) co
             height = geom.height() - y;
         QRect rect(geom.topLeft() + QPoint(x, y), QSize(width, height));
         rect &= window->geometry();
-        return QPixmap::fromImage(mFbScreenImage).copy(rect);
+        return QPixmap::fromImage(m_onscreenImage).copy(rect);
     }
 
     return QPixmap();

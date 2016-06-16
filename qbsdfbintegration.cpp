@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2015 The Qt Company Ltd.
+** Copyright (C) 2016 The Qt Company Ltd.
 ** Copyright (C) 2015-2016 Oleksandr Tymoshenko <gonzo@bluezbox.com>
 ** Contact: http://www.qt.io/licensing/
 **
@@ -32,8 +32,8 @@
 **
 ****************************************************************************/
 
-#include "qscfbintegration.h"
-#include "qscfbscreen.h"
+#include "qbsdfbintegration.h"
+#include "qbsdfbscreen.h"
 
 #include <QtPlatformSupport/private/qgenericunixfontdatabase_p.h>
 #include <QtPlatformSupport/private/qgenericunixservices_p.h>
@@ -45,6 +45,7 @@
 #include <QtPlatformSupport/private/qfbcursor_p.h>
 
 #include <QtGui/private/qguiapplication_p.h>
+#include <qpa/qplatforminputcontext.h>
 #include <qpa/qplatforminputcontextfactory_p.h>
 
 #if !defined(QT_NO_TSLIB)
@@ -53,77 +54,78 @@
 
 QT_BEGIN_NAMESPACE
 
-QScFbIntegration::QScFbIntegration(const QStringList &paramList)
-    : m_fontDb(new QGenericUnixFontDatabase),
-      m_services(new QGenericUnixServices)
+QBsdFbIntegration::QBsdFbIntegration(const QStringList &paramList)
 {
-    m_primaryScreen = new QScFbScreen(paramList);
+    m_fontDb.reset(new QGenericUnixFontDatabase);
+    m_services.reset(new QGenericUnixServices);
+    m_primaryScreen.reset(new QBsdFbScreen(paramList));
 }
 
-QScFbIntegration::~QScFbIntegration()
+QBsdFbIntegration::~QBsdFbIntegration()
 {
-    destroyScreen(m_primaryScreen);
+    destroyScreen(m_primaryScreen.data());
 }
 
-void QScFbIntegration::initialize()
+void QBsdFbIntegration::initialize()
 {
     if (m_primaryScreen->initialize())
-        screenAdded(m_primaryScreen);
+        screenAdded(m_primaryScreen.data());
     else
-        qWarning("scfb: Failed to initialize screen");
+        qWarning("bsdfb: Failed to initialize screen");
 
-    m_inputContext = QPlatformInputContextFactory::create();
-
+    m_inputContext.reset(QPlatformInputContextFactory::create());
     m_nativeInterface.reset(new QPlatformNativeInterface);
-
     m_vtHandler.reset(new QFbVtHandler);
 
     if (!qEnvironmentVariableIntValue("QT_QPA_FB_DISABLE_INPUT"))
         createInputHandlers();
 }
 
-bool QScFbIntegration::hasCapability(QPlatformIntegration::Capability cap) const
+bool QBsdFbIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
     switch (cap) {
-    case ThreadedPixmaps: return true;
-    case WindowManagement: return false;
-    default: return QPlatformIntegration::hasCapability(cap);
+    case ThreadedPixmaps:
+        return true;
+    case WindowManagement:
+        return false;
+    default:
+        return QPlatformIntegration::hasCapability(cap);
     }
 }
 
-QPlatformBackingStore *QScFbIntegration::createPlatformBackingStore(QWindow *window) const
+QPlatformBackingStore *QBsdFbIntegration::createPlatformBackingStore(QWindow *window) const
 {
     return new QFbBackingStore(window);
 }
 
-QPlatformWindow *QScFbIntegration::createPlatformWindow(QWindow *window) const
+QPlatformWindow *QBsdFbIntegration::createPlatformWindow(QWindow *window) const
 {
     return new QFbWindow(window);
 }
 
-QAbstractEventDispatcher *QScFbIntegration::createEventDispatcher() const
+QAbstractEventDispatcher *QBsdFbIntegration::createEventDispatcher() const
 {
     return createUnixEventDispatcher();
 }
 
-QList<QPlatformScreen *> QScFbIntegration::screens() const
+QList<QPlatformScreen *> QBsdFbIntegration::screens() const
 {
     QList<QPlatformScreen *> list;
-    list.append(m_primaryScreen);
+    list.append(m_primaryScreen.data());
     return list;
 }
 
-QPlatformFontDatabase *QScFbIntegration::fontDatabase() const
+QPlatformFontDatabase *QBsdFbIntegration::fontDatabase() const
 {
     return m_fontDb.data();
 }
 
-QPlatformServices *QScFbIntegration::services() const
+QPlatformServices *QBsdFbIntegration::services() const
 {
     return m_services.data();
 }
 
-void QScFbIntegration::createInputHandlers()
+void QBsdFbIntegration::createInputHandlers()
 {
 #ifndef QT_NO_TSLIB
     const bool useTslib = qEnvironmentVariableIntValue("QT_QPA_FB_TSLIB");
@@ -132,7 +134,7 @@ void QScFbIntegration::createInputHandlers()
 #endif
 }
 
-QPlatformNativeInterface *QScFbIntegration::nativeInterface() const
+QPlatformNativeInterface *QBsdFbIntegration::nativeInterface() const
 {
     return m_nativeInterface.data();
 }
